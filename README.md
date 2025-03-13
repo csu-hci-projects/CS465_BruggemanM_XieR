@@ -1,1 +1,2 @@
-# CS465_BruggemanM_XieR_LearyS_ElmagbariR
+# CS465 Scalpel Squad
+

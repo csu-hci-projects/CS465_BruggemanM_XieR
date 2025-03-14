@@ -1,4 +1,6 @@
-A video (3-5 minutes) discussing the current state and showing what has been accomplished:
-A video discussing code (3-5 minutes) if code is available at this stage:
-A link to latex file/word files:
-Additional documents may be included in this repository:
+## Project Deliverables
+
+- **[Video 1]** (3-5 minutes): Discussing the current state and showcasing what has been accomplished  
+- **[Video 2]** (3-5 minutes): Discussing the code, if available at this stage  
+- **[LaTeX/Word Files]**: [Link to the files](#)  
+- **Additional Documents**: Any other relevant files may be included in this repository  

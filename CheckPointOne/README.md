@@ -1,5 +1,5 @@
 ## Project Deliverables
 
 - **[[Video 1]]([url](https://youtu.be/xBpc4w_dZ5k))**: https://youtu.be/xBpc4w_dZ5k
-- **[LaTeX/Word Files]**: [Link to the files](#)  
+- **[LaTeX/Word Files]**:(https://www.overleaf.com/1375422217sywzztxnnzgq#2622d7)
 - **Additional Documents**: Any other relevant files may be included in this repository  

@@ -1,11 +1,8 @@
 # CS465_XieR
 # Evaluating the Usability of Dynamically Moving Targets
 
-## Project Overview
-The **VR Medical Simulator** is designed to provide immersive and interactive medical training using Virtual Reality (VR). It enables medical students to practice hands-on procedures in a safe, controlled environment, improving dexterity, procedural accuracy, and confidence before working with real patients.
-
-### Team Name: **Scalpel Squad**
-**Group Members:** Rachel Xie
+## Checkpoint 2
+Overleaf link: https://www.overleaf.com/read/yyytrwpswztp#9d3c8d
 
 ## Repository Contents
 - **Project Proposal (PDF)** - Includes Introduction, Related Work, and Methodology.

@@ -1,11 +1,11 @@
-# CS465 Scalpel Squad
-# VR Medical Simulator
+# CS465_XieR
+# Evaluating the Usability of Dynamically Moving Targets
 
 ## Project Overview
 The **VR Medical Simulator** is designed to provide immersive and interactive medical training using Virtual Reality (VR). It enables medical students to practice hands-on procedures in a safe, controlled environment, improving dexterity, procedural accuracy, and confidence before working with real patients.
 
 ### Team Name: **Scalpel Squad**
-**Group Members:** Molly Bruggeman, Raghma Elmagbari, Sean O’Leary, Rachel Xie
+**Group Members:** Rachel Xie
 
 ## Repository Contents
 - **Project Proposal (PDF)** - Includes Introduction, Related Work, and Methodology.

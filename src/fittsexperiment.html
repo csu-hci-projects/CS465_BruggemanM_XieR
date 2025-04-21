@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fitts' Law Experiment with Dynamic Targets</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            border: 1px solid #000;
+            background-color: white;
+        }
+        #results {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: white;
+            padding: 10px;
+            border: 1px solid #ccc;
+            display: none;
+            max-width: 400px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="experimentCanvas" width="800" height="600"></canvas>
+    <div id="results"></div>
+
+    <script>
+        const config = {
+            startPointRadius: 15,
+            targetSizes: [10, 20, 40], 
+            distances: [100, 200, 400], 
+            trialsPerCondition: 5,
+            startPointColor: 'blue',
+            targetColor: 'red',
+            successColor: 'green',
+            errorColor: 'darkred',
+            targetBehaviors: ['static', 'shrinking', 'growing', 'moving'],
+        };
+
+        let state = {
+            stage: 'intro', //stages: 'intro', 'startPoint', 'target', 'results'
+            currentTrial: 0,
+            totalTrials: config.targetSizes.length * config.distances.length * config.trialsPerCondition,
+            startTime: 0,
+            results: [],
+            currentTarget: {
+                size: 0,
+                distance: 0,
+                x: 0,
+                y: 0,
+                originalSize: 0, //for growing/shrinking targets
+                originalX: 0,    //for moving targets
+                originalY: 0     //for moving targets
+            },
+            startPoint: {
+                x: 0,
+                y: 0
+            },
+            //properties for animation
+            targetBehavior: 'static',
+            animationFrame: null,
+            animationStartTime: 0
+        };
+
+        const canvas = document.getElementById('experimentCanvas');
+        const ctx = canvas.getContext('2d');
+
+        canvas.width = Math.min(800, window.innerWidth - 40);
+        canvas.height = Math.min(600, window.innerHeight - 40);
+
+        //center the start point
+        state.startPoint.x = canvas.width / 2;
+        state.startPoint.y = canvas.height / 2;
+
+        //draw functions
+        function drawStartPoint(){
+            ctx.fillStyle = config.startPointColor;
+            ctx.beginPath();
+            ctx.arc(state.startPoint.x, state.startPoint.y, config.startPointRadius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = 'white';
+            ctx.textAlign = 'center';
+            ctx.font = '12px Arial';
+            ctx.fillText('Start', state.startPoint.x, state.startPoint.y + 4);
+        }
+
+        function drawTarget(){
+            const elapsedTime = performance.now() - state.animationStartTime;
+            
+            switch (state.targetBehavior){
+                case 'shrinking': //target shrinks (from 100% to 30% over 2 seconds)
+                    const shrinkFactor = Math.max(0.3, 1 - (elapsedTime / 2000));
+                    const currentSizeS = state.currentTarget.originalSize * shrinkFactor;
+                    
+                    ctx.fillStyle = config.targetColor;
+                    ctx.beginPath();
+                    ctx.arc(state.currentTarget.x, state.currentTarget.y, currentSizeS / 2, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    // Update current size for hit detection
+                    state.currentTarget.size = currentSizeS;
+                    break;
+                    
+                case 'growing': //target grows (from 30% to 100% over 2 seconds)
+                    const growFactor = Math.min(1, 0.3 + (elapsedTime / 2000) * 0.7);
+                    const currentSizeG = state.currentTarget.originalSize * growFactor;
+                    
+                    ctx.fillStyle = config.targetColor;
+                    ctx.beginPath();
+                    ctx.arc(state.currentTarget.x, state.currentTarget.y, currentSizeG / 2, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    //update current size
+                    state.currentTarget.size = currentSizeG;
+                    break;
+                    
+                case 'moving': //target goes in a circle every 2 secs
+                    const radius = Math.min(30, state.currentTarget.originalSize); //movement radius
+                    const frequency = 2000; //one round every 2 seconds
+                    
+                    const offsetX = radius * Math.cos(elapsedTime / frequency * Math.PI * 2);
+                    const offsetY = radius * Math.sin(elapsedTime / frequency * Math.PI * 2);
+                    
+                    ctx.fillStyle = config.targetColor;
+                    ctx.beginPath();
+                    ctx.arc(
+                        state.currentTarget.originalX + offsetX, 
+                        state.currentTarget.originalY + offsetY, 
+                        state.currentTarget.originalSize / 2, 
+                        0, Math.PI * 2
+                    );
+                    ctx.fill();
+                    
+                    //update current position
+                    state.currentTarget.x = state.currentTarget.originalX + offsetX;
+                    state.currentTarget.y = state.currentTarget.originalY + offsetY;
+                    break;
+                    
+                default: //static target
+                    ctx.fillStyle = config.targetColor;
+                    ctx.beginPath();
+                    ctx.arc(state.currentTarget.x, state.currentTarget.y, state.currentTarget.size / 2, 0, Math.PI * 2);
+                    ctx.fill();
+                    break;
+            }
+        }
+
+        function drawIntro(){
+            ctx.fillStyle = 'black';
+            ctx.font = '24px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('Fitts\' Law Experiment', canvas.width/2, canvas.height/2 - 40);
+            ctx.font = '16px Arial';
+            ctx.fillText('Click anywhere to begin', canvas.width/2, canvas.height/2);
+            ctx.fillText(`You will perform ${state.totalTrials} targeting tasks`, canvas.width/2, canvas.height/2 + 30);
+            ctx.fillText('Targets may be static, moving, shrinking, or growing', canvas.width/2, canvas.height/2 + 60);
+        }
+
+        function clearCanvas(){
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        //generate a random target position at the specified distance from start point
+        function generateTarget(distance, size){
+            const angle = Math.random() * Math.PI * 2;
+            return {
+                size: size,
+                distance: distance,
+                x: state.startPoint.x + Math.cos(angle) * distance,
+                y: state.startPoint.y + Math.sin(angle) * distance
+            };
+        }
+
+        //check if target is fully inside canvas
+        function isTargetInCanvas(target){
+            const radius = target.size / 2;
+            return (
+                target.x - radius > 0 &&
+                target.x + radius < canvas.width &&
+                target.y - radius > 0 &&
+                target.y + radius < canvas.height
+            );
+        }
+
+        //calculate distance between two points
+        function getDistance(x1, y1, x2, y2){
+            return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+        }
+
+        //animation function
+        function drawAnimatedScene(){
+            clearCanvas();
+            drawTarget();
+            
+            //continue animation if still in the target stage
+            if(state.stage === 'target'){
+                state.animationFrame = requestAnimationFrame(drawAnimatedScene);
+            }
+        }
+
+        //new trial
+        function startNewTrial(){
+            if(state.currentTrial >= state.totalTrials){
+                showResults();
+                return;
+            }
+
+            //cancel any ongoing animation
+            if(state.animationFrame){
+                cancelAnimationFrame(state.animationFrame);
+                state.animationFrame = null;
+            }
+
+            //determine current condition based on trial #
+            const conditionIndex = Math.floor(state.currentTrial / config.trialsPerCondition);
+            const sizeIndex = conditionIndex % config.targetSizes.length;
+            const distanceIndex = Math.floor(conditionIndex / config.targetSizes.length) % config.distances.length;
+            
+            const size = config.targetSizes[sizeIndex];
+            const distance = config.distances[distanceIndex];
+
+            //choose a random target behavior
+            state.targetBehavior = config.targetBehaviors[Math.floor(Math.random() * config.targetBehaviors.length)];
+            
+            //generate target
+            let target;
+            do{
+                target = generateTarget(distance, size);
+            } while(!isTargetInCanvas(target));
+            
+            //store original values for animation
+            target.originalSize = target.size;
+            target.originalX = target.x;
+            target.originalY = target.y;
+            
+            state.currentTarget = target;
+            state.stage = 'startPoint';
+            
+            clearCanvas();
+            drawStartPoint();
+        }
+
+        //handle click on start point
+        function handleStartPointClick(){
+            state.stage = 'target';
+            state.startTime = performance.now();
+            state.animationStartTime = state.startTime;
+
+            clearCanvas();
+            
+            //dynamic target: start animation
+            if(state.targetBehavior !== 'static'){
+                drawAnimatedScene();
+            } else {
+                //static targets: draw once
+                drawTarget();
+            }
+        }
+
+        //handle click
+        function handleTargetClick(x, y){
+            if(state.animationFrame){
+                cancelAnimationFrame(state.animationFrame);
+                state.animationFrame = null;
+            }
+            
+            const endTime = performance.now();
+            const movementTime = endTime - state.startTime;
+            
+            //calculate distance
+            const clickDistance = getDistance(x, y, state.currentTarget.x, state.currentTarget.y);
+            const hit = clickDistance <= state.currentTarget.size / 2;
+            
+            //ID
+            const ID = Math.log2(state.currentTarget.distance / state.currentTarget.originalSize + 1);
+            
+            //storing results
+            state.results.push({
+                trialNumber: state.currentTrial + 1,
+                targetSize: state.currentTarget.originalSize,
+                finalTargetSize: state.currentTarget.size,
+                targetDistance: state.currentTarget.distance,
+                movementTime: movementTime,
+                hit: hit,
+                ID: ID,
+                targetBehavior: state.targetBehavior,
+                throughput: hit ? (ID / (movementTime / 1000)) : 0 
+            });
+            
+            //visual feedback after clicking
+            ctx.beginPath();
+            ctx.arc(x, y, 5, 0, Math.PI * 2);
+            ctx.fillStyle = hit ? config.successColor : config.errorColor;
+            ctx.fill();
+            
+            //increment trial counter
+            state.currentTrial++;
+            
+            //delay before next trial
+            setTimeout(startNewTrial, 500);
+        }
+
+        function showResults(){
+            state.stage = 'results';
+            clearCanvas();
+            
+            const totalTrials = state.results.length;
+            const successfulTrials = state.results.filter(r => r.hit).length;
+            const errorRate = (totalTrials - successfulTrials) / totalTrials * 100;
+            const avgMovementTime = state.results.reduce((sum, r) => sum + r.movementTime, 0) / totalTrials;
+            const avgThroughput = state.results.filter(r => r.hit).reduce((sum, r) => sum + r.throughput, 0) / successfulTrials;
+            
+            const behaviorStats = {};
+            config.targetBehaviors.forEach(behavior => {
+                const behaviorTrials = state.results.filter(r => r.targetBehavior === behavior);
+                if(behaviorTrials.length > 0){
+                    const behaviorSuccessful = behaviorTrials.filter(r => r.hit).length;
+                    behaviorStats[behavior] = {
+                        trials: behaviorTrials.length,
+                        errorRate: (behaviorTrials.length - behaviorSuccessful) / behaviorTrials.length * 100,
+                        avgMovementTime: behaviorTrials.reduce((sum, r) => sum + r.movementTime, 0) / behaviorTrials.length,
+                        avgThroughput: behaviorTrials.filter(r => r.hit).reduce((sum, r) => sum + r.throughput, 0) / 
+                                    (behaviorSuccessful || 1)
+                    };
+                }
+            });
+            
+            ctx.fillStyle = 'black';
+            ctx.font = '24px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('Experiment Complete!', canvas.width/2, 60);
+            
+            ctx.font = '16px Arial';
+            ctx.fillText(`Total Trials: ${totalTrials}`, canvas.width/2, 100);
+            ctx.fillText(`Error Rate: ${errorRate.toFixed(2)}%`, canvas.width/2, 130);
+            ctx.fillText(`Avg Movement Time: ${avgMovementTime.toFixed(2)} ms`, canvas.width/2, 160);
+            ctx.fillText(`Avg Throughput: ${avgThroughput.toFixed(2)} bits/s`, canvas.width/2, 190);
+            
+            let yPos = 230;
+            ctx.font = '18px Arial';
+            ctx.fillText('Performance by Target Behavior:', canvas.width/2, yPos);
+            yPos += 30;
+            
+            ctx.font = '14px Arial';
+            ctx.textAlign = 'left';
+            const leftMargin = canvas.width/2 - 150;
+            
+            Object.keys(behaviorStats).forEach(behavior => {
+                const stats = behaviorStats[behavior];
+                ctx.fillText(`${behavior.charAt(0).toUpperCase() + behavior.slice(1)} targets:`, leftMargin, yPos);
+                yPos += 20;
+                ctx.fillText(`  • Error Rate: ${stats.errorRate.toFixed(2)}%`, leftMargin, yPos);
+                yPos += 20;
+                ctx.fillText(`  • Avg Movement Time: ${stats.avgMovementTime.toFixed(2)} ms`, leftMargin, yPos);
+                yPos += 20;
+                ctx.fillText(`  • Avg Throughput: ${stats.avgThroughput.toFixed(2)} bits/s`, leftMargin, yPos);
+                yPos += 30;
+            });
+            
+            // Create and show detailed results
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.style.display = 'block';
+            
+            // Create CSV data with behavior information
+            let csv = 'Trial,TargetSize,FinalTargetSize,Distance,MovementTime,Hit,ID,TargetBehavior,Throughput\n';
+            state.results.forEach(r => {
+                csv += `${r.trialNumber},${r.targetSize},${r.finalTargetSize.toFixed(2)},${r.targetDistance},${r.movementTime.toFixed(2)},${r.hit ? 1 : 0},${r.ID.toFixed(3)},${r.targetBehavior},${r.throughput.toFixed(3)}\n`;
+            });
+            
+            // Add download link
+            resultsDiv.innerHTML = `
+                <h3>Detailed Results:</h3>
+                <p>Download results as CSV: 
+                    <a href="data:text/csv;charset=utf-8,${encodeURIComponent(csv)}" 
+                    download="fitts_law_dynamic_results.csv">Download</a>
+                </p>
+                <p>To verify Fitts' Law, plot Movement Time against Index of Difficulty (ID).</p>
+                <p>Compare performance across different target behaviors to see how movement affects targeting.</p>
+            `;
+            
+            drawScatterPlot();
+        }
+
+        function drawScatterPlot(){
+            const plotWidth = canvas.width - 100;
+            const plotHeight = 200;
+            const plotX = 50;
+            const plotY = canvas.height - 250;
+            
+            ctx.beginPath();
+            ctx.moveTo(plotX, plotY);
+            ctx.lineTo(plotX, plotY + plotHeight);
+            ctx.lineTo(plotX + plotWidth, plotY + plotHeight);
+            ctx.stroke();
+            
+            ctx.fillStyle = 'black';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('Index of Difficulty (bits)', plotX + plotWidth/2, plotY + plotHeight + 30);
+            
+            ctx.save();
+            ctx.translate(plotX - 30, plotY + plotHeight/2);
+            ctx.rotate(-Math.PI/2);
+            ctx.fillText('Movement Time (ms)', 0, 0);
+            ctx.restore();
+            
+            //find max vals
+            const maxID = Math.max(...state.results.map(r => r.ID));
+            const maxMT = Math.max(...state.results.map(r => r.movementTime));
+            
+            //dot colors
+            const behaviorColors = {
+                'static': 'blue',
+                'shrinking': 'red',
+                'growing': 'green',
+                'moving': 'purple'
+            };
+            
+            state.results.forEach(result => {
+                const x = plotX + (result.ID / maxID) * plotWidth;
+                const y = plotY + plotHeight - (result.movementTime / maxMT) * plotHeight;
+                
+                ctx.beginPath();
+                ctx.arc(x, y, 4, 0, Math.PI * 2);
+                ctx.fillStyle = behaviorColors[result.targetBehavior] || 'gray';
+                ctx.fill();
+            });
+            
+            let legendX = plotX + 10;
+            let legendY = plotY - 20;
+            
+            Object.keys(behaviorColors).forEach(behavior => {
+                ctx.beginPath();
+                ctx.rect(legendX, legendY, 10, 10);
+                ctx.fillStyle = behaviorColors[behavior];
+                ctx.fill();
+                
+                ctx.fillStyle = 'black';
+                ctx.textAlign = 'left';
+                ctx.fillText(behavior, legendX + 15, legendY + 9);
+                
+                legendX += 100; 
+            });
+            
+            config.targetBehaviors.forEach(behavior => {
+                const behaviorResults = state.results.filter(r => r.targetBehavior === behavior);
+                if(behaviorResults.length > 1){
+                    const points = behaviorResults.map(r => ({x: r.ID, y: r.movementTime}));
+                    const {m, b} = linearRegression(points);
+                    
+                    ctx.beginPath();
+                    ctx.strokeStyle = behaviorColors[behavior];
+                    ctx.lineWidth = 2;
+                    
+                    ctx.moveTo(plotX, plotY + plotHeight - ((m * (0) + b) / maxMT) * plotHeight);
+                    ctx.lineTo(
+                        plotX + plotWidth, 
+                        plotY + plotHeight - ((m * maxID + b) / maxMT) * plotHeight
+                    );
+                    ctx.stroke();
+                    ctx.lineWidth = 1;
+                }
+            });
+            
+            ctx.font = '16px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = 'black';
+            ctx.fillText('Movement Time vs. Index of Difficulty', canvas.width/2, plotY - 40);
+        }
+        
+        function linearRegression(points){
+            const n = points.length;
+            let sumX = 0;
+            let sumY = 0;
+            let sumXY = 0;
+            let sumXX = 0;
+            
+            points.forEach(point => {
+                sumX += point.x;
+                sumY += point.y;
+                sumXY += point.x * point.y;
+                sumXX += point.x * point.x;
+            });
+            
+            const m = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+            const b = (sumY - m * sumX) / n;
+            
+            return {m, b};
+        }
+        
+        function calculateR2(points, m, b){
+            const yMean = points.reduce((sum, p) => sum + p.y, 0) / points.length;
+            
+            let ssTot = 0;
+            let ssRes = 0;
+            
+            points.forEach(point => {
+                const yPred = m * point.x + b;
+                ssTot += Math.pow(point.y - yMean, 2);
+                ssRes += Math.pow(point.y - yPred, 2);
+            });
+            
+            return 1 - (ssRes / ssTot);
+        }
+
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            if(state.stage === 'intro'){
+                startNewTrial();
+            } else if(state.stage === 'startPoint'){
+                //check if click is within start point
+                const distance = getDistance(x, y, state.startPoint.x, state.startPoint.y);
+                if(distance <= config.startPointRadius){
+                    handleStartPointClick();
+                }
+            } else if(state.stage === 'target'){
+                handleTargetClick(x, y);
+            }
+        });
+
+        function init(){
+            clearCanvas();
+            drawIntro();
+        }
+
+        init();
+    </script>
+</body>
+</html>

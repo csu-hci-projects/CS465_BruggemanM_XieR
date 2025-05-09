@@ -1,6 +1,12 @@
 # CS465_XieR
 # Evaluating the Usability of Dynamically Moving Targets
 
+## Download the project here:
+https://drive.google.com/file/d/1qtnOmCUfLvWpB66DQQ39XmACSsu24Euc/view?usp=sharing
+	Requirements:  Windows machine, Unity version: 2021.3.16.f1 
+	Instructions: Open this project in Unity. Then press the play button.
+	As a backup, there is a copy of the project on the laptop that I was loaned. It is in the Unity 2021.3.16.f1 application and is named FittsLawDynamic.
+
 ## Overleaf Link
 https://www.overleaf.com/read/yyytrwpswztp#9d3c8d
 
